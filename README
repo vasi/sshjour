@@ -1,0 +1,51 @@
+sshjour: SSH to machines that may or may not be on the LAN
+==========================================================
+
+This is a workaround for routers without NAT Loopback support. On these routers, connecting to the router's external IP address only works from outside the LAN.
+
+
+For example, consider this network:
+
+Alice <==> INTERNET <==> Router <==> Bob          (10.0.1.2)
+                           ^=======> Carol        (10.0.1.3)
+
+The router's internal IP is 10.0.1.1, and the external IP is 77.77.77.77, forwarded to Bob.
+
+To get to Bob:
+  - Alice can SSH to the external IP 77.77.77.77
+  - Carol can SSH to the internal IP 10.0.1.2
+  - Carol *could* SSH to the external IP, iff the router has NAT Loopback.
+    Otherwise, SSHing to 77.77.77.77 would fail.
+  
+If Carol uses a portable computer, she now has to use different addresses to reach Bob, depending on her location! At home she must use 10.0.1.2, but when visiting Alice she has to use 77.77.77.77. Any scripts or cron jobs on her computer that need to get to Bob will break as she moves around.
+
+
+This utility is a workaround, for SSH only. It attempts to determine if a computer is available on the LAN, and if so connects directly. Otherwise, it uses a provided external IP.
+
+Here's how Carol would use it:
+
+1. Ensure Zeroconf ('Bonjour') is working on the LAN. She should be able to
+   ping Bob at the hostname 'Bob.local'.
+
+2. SSH to Bob's computer, and then disconnect. This makes sure that Bob's host
+   key goes into her SSH known_hosts file.
+
+3. Add the following stanza to her ~/.ssh/config file:
+
+Host Bob
+	ProxyCommand /path/to/sshjour %h %p 77.77.77.77
+	HostKeyAlias Bob
+
+4. Now she can write 'ssh Bob', and it should just work, regardless of her
+   location!
+
+
+
+Requirements
+    - Ruby
+	- SSH
+	- Zeroconf (aka 'Bonjour') networking support
+
+
+(C) 2009 Dave Vasilevsky <dave@vasilevsky.ca>
+Licensing: Simplified BSD License, see LICENSE file

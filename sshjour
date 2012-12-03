@@ -1,0 +1,49 @@
+#!/usr/bin/ruby
+# Copyright (C) 2009 Dave Vasilevsky <dave@vasilevsky.ca>
+# Licensing: Simplified BSD License, see LICENSE file
+
+# Bonjour host + port; fallback host + port
+host, port, alternative, altport = ARGV
+host = host + '.local'
+
+# Default to fallback
+found, fport = alternative, altport
+
+# Scan for a local host
+IO.popen('-') do |pipe|
+	if pipe # parent
+		# Timeout if reading hangs
+		alarm = fork do
+			begin
+				sleep 1
+				Process.kill 'ALRM', pipe.pid
+			rescue Exception => e
+				# That's ok!
+			end
+		end
+		key = pipe.read
+		
+		# No zombie
+		Process.kill('INT', alarm)
+		Process.wait(alarm)
+		
+		# Did we succeed, or timeout, or what?
+		Process.wait(pipe.pid)
+		if $?.success?
+			# Is it the key we're looking for?
+			known = IO.readlines(ENV['HOME'] + '/.ssh/known_hosts')
+			found, fport = host, port if known.include?(key)
+		end
+	else # child
+		$stderr.close
+		exec 'ssh-keyscan', host
+	end
+end
+
+unless found
+	STDERR.puts "Can't find host!"
+	exit 1
+end
+
+# Make ourself into a connection
+exec('nc', found, fport || '22')
